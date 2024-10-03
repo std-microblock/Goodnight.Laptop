@@ -19,7 +19,7 @@ Goodnight is a CLI application, a GUI application, and a C++ library that provid
 
 ### Usage
 #### CLI
-```shell
+```text
 
      ___                _     __ _       _     _
     / _ \___   ___   __| | /\ \ (_) __ _| |__ | |_
