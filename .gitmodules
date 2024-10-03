@@ -1,0 +1,6 @@
+[submodule "external/glaze"]
+	path = external/glaze
+	url = https://github.com/stephenberry/glaze
+[submodule "external/Lyra"]
+	path = external/Lyra
+	url = https://github.com/bfgroup/Lyra.git
