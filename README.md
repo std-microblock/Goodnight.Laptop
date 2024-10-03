@@ -17,4 +17,32 @@
 
 Goodnight is a CLI application, a GUI application, and a C++ library that provides a clear interface over Windows power events and management.
 
+### Usage
+#### CLI
+```shell
+
+     ___                _     __ _       _     _
+    / _ \___   ___   __| | /\ \ (_) __ _| |__ | |_
+   / /_\/ _ \ / _ \ / _` |/  \/ / |/ _` | '_ \| __|
+  / /_\\ (_) | (_) | (_| / /\  /| | (_| | | | | |_
+  \____/\___/ \___/ \__,_\_\ \/ |_|\__, |_| |_|\__|
+                                   |___/
+
+    Goodnight CLI v0.1.0
+
+USAGE:
+  goodnight-cli.exe [-k|--keep-sleep] [-l|--wake-log] [-s|--suspend-processes] [-w|-a|--wakeup-actions <wakeupActions>] [-v|--verbose] [-?|-h|--help]
+
+Display usage information.
+
+OPTIONS, ARGUMENTS:
+  -k, --keep-sleep        Keep the system in sleep mode
+  -l, --wake-log          Log the wake events
+  -s, --suspend-processes Suspend processes on sleep
+  -w, -a, --wakeup-actions <wakeupActions>
+                          Wakeup actions [DisplayOn, PowerButton, Keyboard, Mouse, TouchPad, ACDCPower, Other, All]
+  -v, --verbose           Verbose log
+  -?, -h, --help
+```
+
 <sup><sub>Fuck Microsoft. Fuck AMD & Intel.</sub></sup>
