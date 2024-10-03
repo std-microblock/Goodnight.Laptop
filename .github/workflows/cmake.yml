@@ -35,4 +35,4 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
       with:
-        path: ${{github.workspace}}/build/goodnight-cli.exe
+        path: ${{github.workspace}}/build/${{env.BUILD_TYPE}}/goodnight-cli.exe
