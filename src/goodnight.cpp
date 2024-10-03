@@ -231,7 +231,7 @@ Daemon::expected Daemon::updateKeepSleep(const Config &new_config) {
 
           if (!config.wakeupActions.contains(reason)) {
             StandbyManager::sleep();
-            Logger::info("We were woken up. The reason {} is not in the wakeup "
+            Logger::info("We were woken up. The reason WakeupActions({}) is not in the wakeup "
                          "actions, sleep back now...",
                          static_cast<int>(reason));
           }
