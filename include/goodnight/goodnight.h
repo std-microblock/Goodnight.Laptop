@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "placeholder-window.h"
+
 namespace goodnight {
 bool startMessageLoop();
 struct StandbyManager {
@@ -90,8 +91,10 @@ private:
 };
 
 struct SuspenseManager {
-  std::expected<void, std::string> suspendProcess(size_t pid, bool trace = true);
-  std::expected<void, std::string> continueProcess(size_t pid, bool trace = true);
+  std::expected<void, std::string> suspendProcess(size_t pid,
+                                                  bool trace = true);
+  std::expected<void, std::string> continueProcess(size_t pid,
+                                                   bool trace = true);
 
   using BatchOperationResult = std::vector<std::pair<size_t, std::string>>;
   BatchOperationResult suspendProcess(std::unordered_set<size_t> pids);
@@ -108,6 +111,28 @@ struct SuspenseManager {
 
 private:
   std::unordered_set<size_t> suspendedProcesses{};
+};
+
+struct DeviceManager {
+  std::expected<void, std::string> switchHIDDevices(bool disable = true);
+  std::expected<void, std::string> restoreHIDDevices();
+
+  struct DEVINFO_TYPE {
+    int32_t cbSize;
+    std::bitset<128> ClassGuid;
+    int32_t DevInst;
+    void *Reserved;
+  };
+
+  struct DeviceInfo {
+    DEVINFO_TYPE devInfo;
+    std::string deviceDesc;
+    std::string className;
+    void *hDevInfo;
+  };
+
+private:
+  std::vector<DeviceInfo> hidDevicesDisabled{};
 };
 
 struct Daemon {

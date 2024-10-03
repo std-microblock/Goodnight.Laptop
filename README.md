@@ -10,7 +10,7 @@
 
 **In detail**
  - Suspend nearly all processes during sleep.
- - Disable network connections, mouse input, and keyboard input while sleeping. [WIP]
+ - Disable network connections, mouse input, and keyboard input while sleeping.
  - Quickly return to sleep if accidentally awakened.
  - Log kernel power events.
  - Turn off "Away Mode" to prevent interference with normal S0 sleep.

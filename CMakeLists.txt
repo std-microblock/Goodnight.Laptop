@@ -13,7 +13,7 @@ add_library(goodnight-lib
 )
 
 target_link_libraries(goodnight-lib
-    wevtapi
+    wevtapi Setupapi Newdev
 )
 
 target_include_directories(goodnight-lib

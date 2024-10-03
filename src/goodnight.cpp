@@ -2,6 +2,8 @@
 #include "goodnight/logger.h"
 #include "goodnight/placeholder-window.h"
 
+#include <algorithm>
+#include <array>
 #include <expected>
 #include <filesystem>
 #include <format>
@@ -10,12 +12,13 @@
 #include <mutex>
 #include <print>
 #include <string_view>
-
 #include <thread>
 
 // Windows Stuff
 #include "Windows.h"
 #include "winevt.h"
+#include <devguid.h>
+#include <setupapi.h>
 #include <tlhelp32.h>
 
 #include "Psapi.h"
@@ -555,6 +558,136 @@ std::unordered_set<size_t> SuspenseManager::selfTree() {
   }
 
   return pids;
+}
+
+static std::expected<void, std::string>
+disableOrEnableDevice(const goodnight::DeviceManager::DeviceInfo &device,
+                      bool disable) {
+  // Logger::info("{} device[{}]: {}", disable ? "Disabling" : "Enabling",
+  //                    classname.value(), deviceDesc.value());
+
+  auto hDevInfo = reinterpret_cast<HDEVINFO>(device.hDevInfo);
+  auto DeviceInfoDatax = *reinterpret_cast<SP_DEVINFO_DATA *>(
+      const_cast<DeviceManager::DEVINFO_TYPE *>(&device.devInfo));
+
+  SP_PROPCHANGE_PARAMS params;
+  params.ClassInstallHeader.cbSize = sizeof(SP_CLASSINSTALL_HEADER);
+  params.ClassInstallHeader.InstallFunction = DIF_PROPERTYCHANGE;
+  params.Scope = DICS_FLAG_GLOBAL;
+  params.StateChange = disable ? DICS_DISABLE : DICS_ENABLE;
+  params.HwProfile = 0;
+  if (!SetupDiSetClassInstallParams(hDevInfo, &DeviceInfoDatax,
+                                    (SP_CLASSINSTALL_HEADER *)&params,
+                                    sizeof(params))) {
+    return std::unexpected("SetupDiSetClassInstallParams failed");
+  }
+  params.Scope = DICS_FLAG_CONFIGSPECIFIC;
+  if (!SetupDiSetClassInstallParams(hDevInfo, &DeviceInfoDatax,
+                                    (SP_CLASSINSTALL_HEADER *)&params,
+                                    sizeof(params))) {
+    return std::unexpected("SetupDiSetClassInstallParams failed");
+  }
+
+  if (!SetupDiCallClassInstaller(DIF_PROPERTYCHANGE, hDevInfo,
+                                 &DeviceInfoDatax)) {
+    if (GetLastError() == ERROR_NOT_DISABLEABLE) {
+      Logger::error("Failed to disable/enable device \"{}\" because it's not "
+                    "disableable. Skipping...",
+                    device.deviceDesc);
+    } else if (GetLastError() == ERROR_NO_SUCH_DEVINST) {
+      Logger::error("Failed to disable/enable device \"{}\" because it "
+                    "no more exists. Skipping...",
+                    device.deviceDesc);
+    } else {
+      return std::unexpected(
+          std::format("SetupDiCallClassInstaller failed with {}",
+                      GetLastError())
+              .c_str());
+    }
+  }
+
+  return {};
+}
+
+std::expected<void, std::string> DeviceManager::switchHIDDevices(bool disable) {
+  HDEVINFO hDevInfo;
+  SP_DEVINFO_DATA DeviceInfoData;
+  DWORD i;
+  SP_PROPCHANGE_PARAMS
+  params;
+  hDevInfo = SetupDiGetClassDevs(NULL, 0, 0, DIGCF_PRESENT | DIGCF_ALLCLASSES);
+
+  if (hDevInfo == INVALID_HANDLE_VALUE) {
+    return std::unexpected("SetupDiGetClassDevs failed");
+  }
+  DeviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+  for (i = 0; SetupDiEnumDeviceInfo(hDevInfo, i, &DeviceInfoData); i++) {
+    auto getBuf =
+        [&](auto property) -> std::expected<std::string, std::string> {
+      DWORD DataT;
+      DWORD buffersize = 0;
+      std::wstring buf{};
+      SetupDiGetDeviceRegistryPropertyW(hDevInfo, &DeviceInfoData, property,
+                                        &DataT, (PBYTE)buf.data(), buffersize,
+                                        &buffersize);
+      if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+        buf.resize(buffersize * 2);
+      } else {
+        return std::unexpected(std::format(
+            "SetupDiGetDeviceRegistryProperty get buffer size failed with {}",
+            GetLastError()));
+      }
+
+      while (!SetupDiGetDeviceRegistryPropertyW(
+          hDevInfo, &DeviceInfoData, property, &DataT, (PBYTE)buf.data(),
+          buffersize, &buffersize)) {
+        return std::unexpected(std::format(
+            "SetupDiGetDeviceRegistryProperty failed with {}", GetLastError()));
+      }
+      try {
+        auto s = std::filesystem::path(buf).string();
+        // resize to remove the null terminator
+        return s.substr(0, s.find_first_of('\0'));
+      } catch (std::exception &e) {
+        return std::unexpected(
+            std::format("Failed to convert path: {}", e.what()));
+      }
+    };
+
+    auto deviceService = getBuf(SPDRP_SERVICE);
+    auto deviceDesc = getBuf(SPDRP_DEVICEDESC);
+    auto capabilites = getBuf(SPDRP_CAPABILITIES);
+    auto classname = getBuf(SPDRP_CLASS);
+
+    auto list = std::vector{"Keyboard",  "Mouse",    "TouchPad",
+                            "Bluetooth", "HIDClass", "Net"};
+    if (classname && std::ranges::contains(list, classname.value())) {
+      auto devInfo = DeviceInfo{
+          .devInfo = *reinterpret_cast<DEVINFO_TYPE *>(&DeviceInfoData),
+          .deviceDesc = deviceDesc.has_value() ? deviceDesc.value() : "",
+          .className = classname.has_value() ? classname.value() : "",
+          .hDevInfo = hDevInfo,
+      };
+      std::thread([=]() -> std::expected<void, std::string> {
+        if (auto res = disableOrEnableDevice(devInfo, disable); !res) {
+          return res;
+        }
+        return {};
+      }).detach();
+
+      hidDevicesDisabled.push_back(devInfo);
+    }
+  }
+  SetupDiDestroyDeviceInfoList(hDevInfo);
+  return {};
+}
+std::expected<void, std::string> DeviceManager::restoreHIDDevices() {
+  for (auto &device : hidDevicesDisabled) {
+    if (auto res = disableOrEnableDevice(device, false); !res) {
+      Logger::error("Failed to enable device \"{}\": {}", device.deviceDesc,
+                    res.error());
+    }
+  }
 }
 } // namespace goodnight
 
