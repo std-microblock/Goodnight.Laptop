@@ -52,28 +52,6 @@ wakeActionToHumanReadable(goodnight::Daemon::Config::WakeupActions action) {
 }
 
 int main(int argc, char **argv) {
-
-  try {
-    goodnight::DeviceManager deviceManager;
-    if (auto res = deviceManager.switchHIDDevices(true); !res) {
-      std::cerr << "Error: " << res.error() << std::endl;
-    }
-
-    std::this_thread::sleep_for(std::chrono::seconds(5));
-
-    std::cout << "Restoring devices..." << std::endl;
-
-    if (auto res =  deviceManager.restoreHIDDevices(); !res) {
-      std::cerr << "Error: " << res.error() << std::endl;
-    }
-    std::cout << "Done." << std::endl;
-  } catch (const std::exception &e) {
-    std::cerr << "Error: " << e.what() << std::endl;
-    return 1;
-  }
-
-  return false;
-
   std::cout << R"(
      ___                _     __ _       _     _   
     / _ \___   ___   __| | /\ \ (_) __ _| |__ | |_ 
