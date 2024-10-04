@@ -10,16 +10,22 @@
 #include <iostream>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <print>
 #include <string_view>
 #include <thread>
 
 // Windows Stuff
 #include "Windows.h"
+#include "cfgmgr32.h"
 #include "winevt.h"
 #include <devguid.h>
 #include <setupapi.h>
 #include <tlhelp32.h>
+
+#include <initguid.h>
+
+#include "devpkey.h"
 
 #include "Psapi.h"
 
@@ -213,6 +219,9 @@ std::expected<void, std::string> Daemon::updateConfig(const Config &config) {
   if (auto res = updateWakeLog(config); !res) {
     return res;
   }
+  if (auto res = updateDisableDevices(config); !res) {
+    return res;
+  }
   this->config = config;
   return {};
 }
@@ -231,7 +240,8 @@ Daemon::expected Daemon::updateKeepSleep(const Config &new_config) {
 
           if (!config.wakeupActions.contains(reason)) {
             StandbyManager::sleep();
-            Logger::info("We were woken up. The reason WakeupActions({}) is not in the wakeup "
+            Logger::info("We were woken up. The reason WakeupActions({}) is "
+                         "not in the wakeup "
                          "actions, sleep back now...",
                          static_cast<int>(reason));
           }
@@ -488,8 +498,9 @@ bool SuspenseManager::isSystemProcess(size_t pid) {
 
   auto processPath = std::filesystem::path(pathBuf);
 
-  auto systemProcNameList = {"OpenConsole.exe", "conhost.exe",
-                             "WindowsTerminal.exe", "cmd.exe"};
+  auto systemProcNameList = {"OpenConsole.exe",     "conhost.exe",
+                             "WindowsTerminal.exe", "cmd.exe",
+                             "powershell.exe",      "pwsh.exe"};
 
   return processPath.string().contains("\\Windows\\") ||
          processPath.string().contains("\\System32\\") ||
@@ -563,9 +574,6 @@ std::unordered_set<size_t> SuspenseManager::selfTree() {
 static std::expected<void, std::string>
 disableOrEnableDevice(const goodnight::DeviceManager::DeviceInfo &device,
                       bool disable) {
-  // Logger::info("{} device[{}]: {}", disable ? "Disabling" : "Enabling",
-  //                    classname.value(), deviceDesc.value());
-
   auto hDevInfo = reinterpret_cast<HDEVINFO>(device.hDevInfo);
   auto DeviceInfoDatax = *reinterpret_cast<SP_DEVINFO_DATA *>(
       const_cast<DeviceManager::DEVINFO_TYPE *>(&device.devInfo));
@@ -579,13 +587,15 @@ disableOrEnableDevice(const goodnight::DeviceManager::DeviceInfo &device,
   if (!SetupDiSetClassInstallParams(hDevInfo, &DeviceInfoDatax,
                                     (SP_CLASSINSTALL_HEADER *)&params,
                                     sizeof(params))) {
-    return std::unexpected("SetupDiSetClassInstallParams failed");
+    return std::unexpected(std::format(
+        "SetupDiSetClassInstallParams failed with {}", GetLastError()));
   }
   params.Scope = DICS_FLAG_CONFIGSPECIFIC;
   if (!SetupDiSetClassInstallParams(hDevInfo, &DeviceInfoDatax,
                                     (SP_CLASSINSTALL_HEADER *)&params,
                                     sizeof(params))) {
-    return std::unexpected("SetupDiSetClassInstallParams failed");
+    return std::unexpected(std::format(
+        "SetupDiSetClassInstallParams failed with {}", GetLastError()));
   }
 
   if (!SetupDiCallClassInstaller(DIF_PROPERTYCHANGE, hDevInfo,
@@ -609,7 +619,8 @@ disableOrEnableDevice(const goodnight::DeviceManager::DeviceInfo &device,
   return {};
 }
 
-std::expected<void, std::string> DeviceManager::switchHIDDevices(bool disable) {
+std::expected<void, std::string> DeviceManager::switchHIDDevices(
+    std::function<std::optional<bool>(DeviceInformationBasic &)> pred) {
   HDEVINFO hDevInfo;
   SP_DEVINFO_DATA DeviceInfoData;
   DWORD i;
@@ -658,36 +669,201 @@ std::expected<void, std::string> DeviceManager::switchHIDDevices(bool disable) {
     auto deviceDesc = getBuf(SPDRP_DEVICEDESC);
     auto capabilites = getBuf(SPDRP_CAPABILITIES);
     auto classname = getBuf(SPDRP_CLASS);
+    auto deviceId = getBuf(SPDRP_HARDWAREID);
 
-    auto list = std::vector{"Keyboard",  "Mouse",    "TouchPad",
-                            "Bluetooth", "HIDClass", "Net"};
-    if (classname && std::ranges::contains(list, classname.value())) {
-      auto devInfo = DeviceInfo{
-          .devInfo = *reinterpret_cast<DEVINFO_TYPE *>(&DeviceInfoData),
-          .deviceDesc = deviceDesc.has_value() ? deviceDesc.value() : "",
-          .className = classname.has_value() ? classname.value() : "",
-          .hDevInfo = hDevInfo,
-      };
-      std::thread([=]() -> std::expected<void, std::string> {
-        if (auto res = disableOrEnableDevice(devInfo, disable); !res) {
-          return res;
+    bool has_enabled = true;
+    {
+      ULONG status = 0, problem = 0;
+      CONFIGRET cr =
+          CM_Get_DevNode_Status(&status, &problem, DeviceInfoData.DevInst, 0);
+      if (CR_SUCCESS == cr) {
+        if (problem == CM_PROB_DISABLED) {
+          has_enabled = false;
+        } else {
+          DEVPROPTYPE propertyType;
+          const DWORD propertyBufferSize = 100;
+          BYTE propertyBuffer[propertyBufferSize] = {0};
+          DWORD requiredSize = 0;
+
+          if (SetupDiGetDevicePropertyW(hDevInfo, &DeviceInfoData,
+                                        &DEVPKEY_Device_ProblemCode,
+                                        &propertyType, propertyBuffer,
+                                        propertyBufferSize, &requiredSize, 0)) {
+            unsigned long deviceProblemCode =
+                *reinterpret_cast<unsigned long *>(propertyBuffer);
+            if (deviceProblemCode == CM_PROB_DISABLED) {
+              has_enabled = false;
+            }
+          }
         }
-        return {};
-      }).detach();
+      }
+    }
 
-      hidDevicesDisabled.push_back(devInfo);
+    DeviceInformationBasic info{
+        .deviceDesc = deviceDesc.has_value() ? deviceDesc.value() : "",
+        .className = classname.has_value() ? classname.value() : "",
+        .deviceService = deviceService.has_value() ? deviceService.value() : "",
+        .hwid = deviceId.has_value() ? deviceId.value() : "",
+        .enabled = has_enabled,
+    };
+
+    auto enable = pred(info);
+
+    auto devInfo = DeviceInfo{
+        .devInfo = *reinterpret_cast<DEVINFO_TYPE *>(&DeviceInfoData),
+        .deviceDesc = deviceDesc.has_value() ? deviceDesc.value() : "",
+        .className = classname.has_value() ? classname.value() : "",
+        .hDevInfo = hDevInfo,
+        .hwid = info.hwid};
+    auto existingOne =
+        std::ranges::find_if(hidDevicesDisabled, [&](auto &device) {
+          return device.hwid == devInfo.hwid;
+        });
+
+    if (!enable.has_value() && existingOne != hidDevicesDisabled.end()) {
+      if (auto res = disableOrEnableDevice(devInfo, false); !res) {
+        return res;
+      }
+
+      hidDevicesDisabled.erase(existingOne);
+    } else if (enable.has_value() && *enable != has_enabled) {
+      Logger::info("{} device[{}]: {}", *enable ? "Enabling" : "Disabling",
+                   classname.value(), deviceDesc.value());
+      if (auto res = disableOrEnableDevice(devInfo, !*enable); !res) {
+        return res;
+      }
+
+      // Track Goodnight managed devices
+      if (!*enable) {
+        if (existingOne == hidDevicesDisabled.end()) {
+          hidDevicesDisabled.push_back(devInfo);
+        }
+      } else {
+        if (existingOne != hidDevicesDisabled.end()) {
+          hidDevicesDisabled.erase(existingOne);
+        }
+      }
     }
   }
   SetupDiDestroyDeviceInfoList(hDevInfo);
   return {};
 }
 std::expected<void, std::string> DeviceManager::restoreHIDDevices() {
-  for (auto &device : hidDevicesDisabled) {
-    if (auto res = disableOrEnableDevice(device, false); !res) {
-      Logger::error("Failed to enable device \"{}\": {}", device.deviceDesc,
-                    res.error());
-    }
+  if (auto res = switchHIDDevices([this](auto dev) -> std::optional<bool> {
+        if (std::ranges::find_if(hidDevicesDisabled, [&](auto &device) {
+              return device.hwid == dev.hwid;
+            }) != hidDevicesDisabled.end()) {
+          return std::optional<bool>{true};
+        }
+        return std::nullopt;
+      });
+      !res) {
+    return res;
   }
+
+  return {};
+}
+Daemon::expected Daemon::updateDisableDevices(const Config &new_config) {
+  if (new_config.disableDevices) {
+    if (!config.disableDevices ||
+        (new_config.wakeupActions != config.wakeupActions)) {
+      if (!deviceManager) {
+        deviceManager = std::make_unique<DeviceManager>();
+      }
+      powerListenerDisableDevices = std::make_unique<PowerListener>();
+      powerListenerDisableDevices->addListener([this](auto event) {
+        if (auto *exitEvent =
+                std::get_if<PowerListener::ExitModernStandbyEvent>(&event)) {
+          auto action = ToWakeupAction(exitEvent->reason);
+          if (config.wakeupActions.contains(action)) {
+            auto res = deviceManager->restoreHIDDevices();
+            if (!res) {
+              Logger::error("Failed to restore devices: {}", res.error());
+            }
+          }
+        } else if (auto *enterEvent =
+                       std::get_if<PowerListener::EnterModernStandbyEvent>(
+                           &event)) {
+          // WakeupAction:: Mouse->Mouse, Keyboard->Keyboard
+          std::vector<std::string> devClassesToDisable{};
+          using WA = Daemon::Config::WakeupActions;
+
+          auto runSwitch = [&]() {
+            auto res = deviceManager->switchHIDDevices(
+                [&](auto &device) -> std::optional<bool> {
+                  return std::ranges::contains(devClassesToDisable,
+                                               device.className)
+                             ? std::optional<bool>{false}
+                             : std::nullopt;
+                });
+            if (!res) {
+              Logger::error("Failed to disable devices: {}", res.error());
+            }
+          };
+
+          if (!config.wakeupActions.contains(WA::Mouse)) {
+            devClassesToDisable.push_back("Mouse");
+          }
+
+          if (!config.wakeupActions.contains(WA::Keyboard)) {
+            devClassesToDisable.push_back("Keyboard");
+          }
+
+          runSwitch();
+          devClassesToDisable.clear();
+          
+          if (!config.wakeupActions.contains(WA::TouchPad)) {
+            auto res = deviceManager->switchHIDDevices(
+                [&](DeviceManager::DeviceInformationBasic &device)
+                    -> std::optional<bool> {
+                  return device.deviceDesc.contains(
+                             std::filesystem::path(L"触摸板").string()) ||
+                                 device.deviceDesc.contains("Touchpad")
+                             ? std::optional<bool>{false}
+                             : device.enabled;
+                });
+
+            if (!res) {
+              Logger::error("Failed to disable touchpad devices: {}",
+                            res.error());
+            }
+          }
+
+          if (!config.wakeupActions.contains(WA::Other)) {
+            devClassesToDisable.push_back("Bluetooth");
+            devClassesToDisable.push_back("Net");
+          }
+
+          runSwitch();
+        }
+      });
+      if (auto res = powerListenerDisableDevices->start(); !res) {
+        return res;
+      }
+    }
+  } else {
+    deviceManager = nullptr;
+    powerListenerDisableDevices = nullptr;
+  }
+
+  return {};
+}
+bool isAdministrator() {
+  HANDLE hToken;
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+    return false;
+  }
+
+  TOKEN_ELEVATION elevation;
+  DWORD dwSize;
+  if (!GetTokenInformation(hToken, TokenElevation, &elevation,
+                           sizeof(elevation), &dwSize)) {
+    CloseHandle(hToken);
+    return false;
+  }
+
+  CloseHandle(hToken);
+  return elevation.TokenIsElevated;
 }
 } // namespace goodnight
 

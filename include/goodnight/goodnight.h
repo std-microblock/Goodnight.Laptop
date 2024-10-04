@@ -20,6 +20,7 @@
 
 namespace goodnight {
 bool startMessageLoop();
+bool isAdministrator();
 struct StandbyManager {
   static bool displayOff();
   static bool sleep();
@@ -114,7 +115,22 @@ private:
 };
 
 struct DeviceManager {
-  std::expected<void, std::string> switchHIDDevices(bool disable = true);
+  struct DeviceInformationBasic {
+    std::string deviceDesc;
+    std::string className;
+    std::string deviceService;
+    std::string hwid;
+    bool enabled;
+  };
+  /**
+   * @brief Disable or enable a device
+   *
+   * @param pred A predicate that returns true if the device should be disabled,
+   *             false if it should be enabled, and std::nullopt if it should be
+   *             left as is (Will be enabled if it was disabled by the manager)
+   */
+  std::expected<void, std::string> switchHIDDevices(
+      std::function<std::optional<bool>(DeviceInformationBasic &)> pred);
   std::expected<void, std::string> restoreHIDDevices();
 
   struct DEVINFO_TYPE {
@@ -129,6 +145,7 @@ struct DeviceManager {
     std::string deviceDesc;
     std::string className;
     void *hDevInfo;
+    std::string hwid;
   };
 
 private:
@@ -155,6 +172,7 @@ struct Daemon {
     bool suspendProcesses = false;
 
     bool wakeLog = false;
+    bool disableDevices = false;
   };
   using expected = std::expected<void, std::string>;
   expected updateConfig(const Config &config);
@@ -170,6 +188,9 @@ private:
   std::unique_ptr<SuspenseManager> suspenseManager = nullptr;
 
   std::unique_ptr<PowerListener> powerListenerWakeLog = nullptr;
+
+  std::unique_ptr<PowerListener> powerListenerDisableDevices = nullptr;
+  std::unique_ptr<DeviceManager> deviceManager = nullptr;
 
   Config::WakeupActions
   ToWakeupAction(PowerListener::ExitModernStandbyEvent::Reason reason) {
@@ -202,5 +223,6 @@ private:
   expected updateKeepSleep(const Config &new_config);
   expected updateSuspendProcesses(const Config &new_config);
   expected updateWakeLog(const Config &new_config);
+  expected updateDisableDevices(const Config &new_config);
 };
 } // namespace goodnight
