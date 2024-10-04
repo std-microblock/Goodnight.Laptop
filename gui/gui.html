@@ -1,0 +1,243 @@
+R"##(<rml>
+
+    <head>
+        <style>
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: Arial;
+                decorator: linear-gradient(140deg, #1f0449 0%, #000416 100%);
+                width: 100%;
+                height: 100%;
+                padding: 30dp 30dp;
+            }
+
+            .title {
+                font-size: 26dp;
+                color: #fff;
+                font-weight: 700;
+            }
+
+            .subtitle {
+                font-size: 16dp;
+                color: #fff;
+                font-weight: 700;
+                opacity: 0.6;
+            }
+
+
+            .decoBlock {
+                width: 100dp;
+                height: 6dp;
+                background: #fff;
+                display: block;
+                border-radius: 100dp;
+            }
+
+            .line {
+                max-width: 100%;
+                display: flex;
+                gap: 10dp;
+            }
+
+            .buttonBlock {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                height: 50dp;
+                background: #ffffff11;
+                color: #fff;
+                font-size: 16dp;
+                font-weight: 700;
+                padding: 33dp 20dp;
+                border-radius: 19dp;
+                text-align: center;
+                margin-top: 10dp;
+                transition: all 0.1s;
+                border: 1dp;
+                border-color: #ffffff33;
+            }
+
+            .button {
+                display: inline-block;
+                height: 40dp;
+                background: #ffffff11;
+                color: #fff;
+                font-size: 16dp;
+                font-weight: 700;
+                padding: 10dp 15dp;
+                border-radius: 19dp;
+                text-align: center;
+                margin-top: 10dp;
+                transition: all 0.1s;
+                border: 1dp;
+                border-color: #ffffff33;
+            }
+
+            .enabled {
+                background: #21002255;
+                border-color: #ffffff44;
+                box-shadow: 0dp 0dp 19dp 1dp #ffffff79;
+            }
+
+            .buttonBlock:last-child {
+                margin-right: 0;
+                flex: auto;
+            }
+
+            .buttonBlock:hover {
+                background: #ffffff33;
+                border-color: #ffffff44;
+            }
+
+            .buttonBlock:active {
+                background: #ffffff44;
+                border-color: #ffffff55;
+            }
+
+            .button:hover {
+                background: #ffffff33;
+                border-color: #ffffff44;
+            }
+
+            .button:active {
+                background: #ffffff44;
+                border-color: #ffffff55;
+            }
+
+            .buttonBlock>.icon {
+                font-size: 40dp;
+                color: #fff;
+                text-align: center;
+                font-weight: 700;
+            }
+
+            .right {
+                display: inline-block;
+            }
+
+            .right>* {
+                display: block;
+                text-align: left;
+            }
+
+            .right .desc {
+                font-size: 16dp;
+                color: #fff;
+                font-weight: 700;
+                opacity: 0.6;
+            }
+
+            .right .desc.expl {
+                color: rgb(255, 255, 255);
+                font-size: 12dp;
+                opacity: 1;
+            }
+        </style>
+    </head>
+
+    <body data-model="Goodnight">
+        <div class="decoBlock"></div><br />
+        <div class="title">
+            Goodnight
+        </div><br />
+        <div class="subtitle">
+            & 晚安好梦
+        </div><br />
+
+        <div class="line" style="margin-top: 10dp;">
+            <div class="buttonBlock" data-class-enabled="daemonEnabled" data-event-click="switchDaemon(!daemonEnabled)">
+                <div class="icon">
+                    总
+                </div>
+                <div class="right">
+                    <div class="desc">
+                        睡眠守护
+                    </div>
+                    <div class="desc expl">
+                        {{daemonEnabled ? '已启动' : '未启动'}}
+                    </div>
+                </div>
+            </div>
+
+            <div class="buttonBlock">
+                <div class="right">
+                    <div class="desc">
+                        开机自启
+                    </div>
+                    <div class="desc expl">
+                        还没写
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="subtitle" style="margin-top: 40dp; display: block;">
+            配置
+        </div>
+
+        <div class="buttonBlock" data-class-enabled="keepSleep"
+            data-event-click="keepSleep = !keepSleep; reloadConfigs();">
+            <div class="icon">
+                K
+            </div>
+            <div class="right">
+                <div class="desc">
+                    保持睡眠
+                </div>
+                <div class="desc expl">
+                    如果在睡眠期间醒来，自动重新睡眠
+                </div>
+            </div>
+        </div>
+
+        <div class="line">
+            <div class="buttonBlock" data-class-enabled="disableDevices"
+                data-event-click="disableDevices = !disableDevices; reloadConfigs();">
+                <div class="right">
+                    <div class="desc">
+                        关闭设备
+                    </div>
+                    <div class="desc expl">
+                        禁用鼠标、触控板等
+                    </div>
+                </div>
+            </div>
+            <div class="buttonBlock" data-class-enabled="suspendProcesses"
+                data-event-click="suspendProcesses = !suspendProcesses; reloadConfigs();">
+                <div class="right">
+                    <div class="desc">
+                        暂停进程
+                    </div>
+                    <div class="desc expl">
+                        暂停大部分软件活动
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="subtitle" style="margin-top: 20dp; display: block;">
+            唤醒方式
+        </div>
+        <div class="line">
+            <div class="button" data-class-enabled="wakeMouse" data-event-click="wakeMouse = !wakeMouse; reloadConfigs();">鼠标</div>
+            <div class="button" data-class-enabled="wakeKeyboard" data-event-click="wakeKeyboard = !wakeKeyboard; reloadConfigs();">键盘
+            </div>
+            <div class="button" data-class-enabled="wakeTouchPad" data-event-click="wakeTouchPad = !wakeTouchPad; reloadConfigs();">触控板
+            </div>
+            <div class="button" data-class-enabled="wakeOther" data-event-click="wakeOther = !wakeOther; reloadConfigs();">其它</div>
+        </div>
+
+        <div class="subtitle" style="margin-top: 20dp; display: block;">
+            其它
+        </div>
+        <div class="line">
+            <div class="button" data-event-click="openGithub()">Github</div>
+            <div class="button" data-class-enabled="awayModeDisabled" data-event-click="awayModeDisabled = true;">
+                {{awayModeDisabled ? 'Away Mode 已禁用' : '禁用 Away Mode'}}
+            </div>
+        </div>
+    </body>
+</rml>)##"

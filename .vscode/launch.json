@@ -8,9 +8,9 @@
             "type": "lldb",
             "request": "launch",
             "name": "Debug",
-            "program": "${workspaceFolder}/build/goodnight-cli.exe",
+            "program": "${workspaceFolder}/build/goodnight-gui.exe",
             "args": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}/build/"
         }
     ]
 }

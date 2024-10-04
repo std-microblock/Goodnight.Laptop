@@ -4,3 +4,18 @@
 [submodule "external/Lyra"]
 	path = external/Lyra
 	url = https://github.com/bfgroup/Lyra.git
+[submodule "external/RmlUi"]
+	path = external/RmlUi
+	url = https://github.com/mikke89/RmlUi/
+[submodule "external/freetype"]
+	path = external/freetype
+	url = https://github.com/freetype/freetype
+[submodule "external/glfw"]
+	path = external/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "external/lunasvg"]
+	path = external/lunasvg
+	url = https://github.com/sammycage/lunasvg.git
+[submodule "external/lodepng"]
+	path = external/lodepng
+	url = https://github.com/lvandeve/lodepng.git

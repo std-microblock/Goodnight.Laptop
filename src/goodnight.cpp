@@ -239,11 +239,12 @@ Daemon::expected Daemon::updateKeepSleep(const Config &new_config) {
           auto reason = ToWakeupAction(exitEvent->reason);
 
           if (!config.wakeupActions.contains(reason)) {
-            StandbyManager::sleep();
             Logger::info("We were woken up. The reason WakeupActions({}) is "
                          "not in the wakeup "
-                         "actions, sleep back now...",
+                         "actions, sleep back 5 seconds later...",
                          static_cast<int>(reason));
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+            StandbyManager::sleep();
           }
         }
       });
