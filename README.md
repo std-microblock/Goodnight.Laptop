@@ -2,7 +2,7 @@
 <img src="./icon.webp" width=130>
 <h1>Goodnight · 晚安好梦</h1>
 <h3>Fixes S0 StandBy</h3>
-<img src="./cli-screenshot.webp" />
+<img src="./screenshot.webp" />
 </div>
 
 ### What would the project do?
@@ -18,6 +18,10 @@
 Goodnight is a CLI application, a GUI application, and a C++ library that provides a clear interface over Windows power events and management.
 
 ### Usage
+
+#### GUI
+Open the GUI and enable the functions you needs.
+
 #### CLI
 ```text
 
@@ -28,10 +32,10 @@ Goodnight is a CLI application, a GUI application, and a C++ library that provid
   \____/\___/ \___/ \__,_\_\ \/ |_|\__, |_| |_|\__|
                                    |___/
 
-    Goodnight CLI v0.1.0
+    Goodnight CLI v0.1.1
 
 USAGE:
-  goodnight-cli.exe [-k|--keep-sleep] [-l|--wake-log] [-s|--suspend-processes] [-w|-a|--wakeup-actions <wakeupActions>] [-v|--verbose] [-?|-h|--help]
+  goodnight-cli.exe [-k|--keep-sleep] [-l|--wake-log] [-s|--suspend-processes] [-w|-a|--wakeup-actions <wakeupActions>] [-v|--verbose] [-d|--disable-devices] [-?|-h|--help]
 
 Display usage information.
 
@@ -42,6 +46,7 @@ OPTIONS, ARGUMENTS:
   -w, -a, --wakeup-actions <wakeupActions>
                           Wakeup actions [DisplayOn, PowerButton, Keyboard, Mouse, TouchPad, ACDCPower, Other, All]
   -v, --verbose           Verbose log
+  -d, --disable-devices   Disable devices on sleep
   -?, -h, --help
 ```
 
