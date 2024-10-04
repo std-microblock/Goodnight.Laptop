@@ -2,6 +2,9 @@
 <img src="./icon.webp" width=130>
 <h1>Goodnight · 晚安好梦</h1>
 <h3>Fixes S0 StandBy</h3>
+<sup><sub>
+GUI internationalization isn't done currently. English users can use CLI version alternatively.
+</sub></sup>
 <img src="./screenshot.webp" />
 </div>
 
