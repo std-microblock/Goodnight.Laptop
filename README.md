@@ -23,6 +23,9 @@ Goodnight is a CLI application, a GUI application, and a C++ library that provid
 Open the GUI and enable the functions you needs.
 
 #### CLI
+Simple usage: Open the goodnight-cli.exe and it will run under default configuration.
+
+Detailed:
 ```text
 
      ___                _     __ _       _     _
