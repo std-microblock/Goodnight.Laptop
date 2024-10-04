@@ -1,3 +1,4 @@
+[中文](./README_zh.md)
 <div align=center>
 <img src="./icon.webp" width=130>
 <h1>Goodnight · 晚安好梦</h1>
