@@ -1,6 +1,7 @@
 #include <RmlUi/Core.h>
 #include <RmlUi/Debugger.h>
 #include <atomic>
+#include <cstdlib>
 #include <expected>
 #include <filesystem>
 #include <fstream>
@@ -164,15 +165,20 @@ struct SavedConfig {
     config.disableDevices = disableDevices;
     for (auto &action : wakeupActions) {
       if (action == "DisplayOn") {
-        config.wakeupActions.insert(goodnight::Daemon::Config::WakeupActions::DisplayOn);
+        config.wakeupActions.insert(
+            goodnight::Daemon::Config::WakeupActions::DisplayOn);
       } else if (action == "Keyboard") {
-        config.wakeupActions.insert(goodnight::Daemon::Config::WakeupActions::Keyboard);
+        config.wakeupActions.insert(
+            goodnight::Daemon::Config::WakeupActions::Keyboard);
       } else if (action == "Mouse") {
-        config.wakeupActions.insert(goodnight::Daemon::Config::WakeupActions::Mouse);
+        config.wakeupActions.insert(
+            goodnight::Daemon::Config::WakeupActions::Mouse);
       } else if (action == "TouchPad") {
-        config.wakeupActions.insert(goodnight::Daemon::Config::WakeupActions::TouchPad);
+        config.wakeupActions.insert(
+            goodnight::Daemon::Config::WakeupActions::TouchPad);
       } else if (action == "Other") {
-        config.wakeupActions.insert(goodnight::Daemon::Config::WakeupActions::Other);
+        config.wakeupActions.insert(
+            goodnight::Daemon::Config::WakeupActions::Other);
       }
     }
     return config;
@@ -266,7 +272,7 @@ bool deleteStartupTask() {
 }
 
 static auto configFile() {
-  auto exeDir = std::filesystem::path(__argv[0]).parent_path();
+  static auto exeDir = std::filesystem::path(__argv[0]).parent_path();
   return exeDir / "goodnight.json";
 }
 
@@ -312,10 +318,11 @@ static auto createMainModel(Rml::Context *context) {
           goodnight::Logger::error("Failed to open config file, the changes "
                                    "will not be saved");
         }
-        if(auto val = glz::write_json(saved); val.has_value()) {
+        if (auto val = glz::write_json(saved); val.has_value()) {
           file << val.value();
         } else {
-          goodnight::Logger::error("Failed to write config: {}", val.error().custom_error_message);
+          goodnight::Logger::error("Failed to write config: {}",
+                                   val.error().custom_error_message);
         }
 
         if (!daemon)
@@ -595,6 +602,8 @@ std::expected<void, std::string> showUI() {
   Rml::Shutdown();
   Backend::Shutdown();
   context = nullptr;
+  if (!daemon)
+    std::exit(0);
   return {};
 }
 
@@ -650,10 +659,11 @@ int main(int argc, char *argv[]) {
   }
   std::stringstream ss;
   ss << file.rdbuf();
-  if(auto val = glz::read_json<SavedConfig>(ss.str()); val.has_value()) {
+  if (auto val = glz::read_json<SavedConfig>(ss.str()); val.has_value()) {
     uiData.config = val.value().toConfig();
   } else {
-    goodnight::Logger::error("Failed to read config: {}", val.error().custom_error_message);
+    goodnight::Logger::error("Failed to read config: {}",
+                             val.error().custom_error_message);
   }
 
   if (auto res = daemon->updateConfig(uiData.config); !res) {
