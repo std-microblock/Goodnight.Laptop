@@ -431,6 +431,7 @@ static auto createMainModel(Rml::Context *context) {
           goodnight::Logger::error("Failed to set away mode: {}", res);
           return Rml::Variant(res);
         }
+        awayModeDisabled = variant.template Get<bool>();
         return Rml::Variant();
       });
 

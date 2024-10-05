@@ -269,12 +269,12 @@ R"##(<rml>
         </div>
         <div class="line">
             <div class="button" data-event-click="openGithub()">Github</div>
-            <div class="button" data-class-enabled="awayModeDisabled" data-event-click="awayModeDisabled = true;">
+            <div class="button" data-class-enabled="awayModeDisabled" data-event-click="awayModeDisabled = !awayModeDisabled;">
                 {{
                 english ? (
                 awayModeDisabled ? 'Away Mode Disabled' : 'Disable Away Mode'
                 ) : (
-                awayModeDisabled ? '离开模式已禁用' : '禁用 Away Mode'
+                awayModeDisabled ? '离开模式已禁用' : '禁用离开模式'
                 )
                 }}
             </div>

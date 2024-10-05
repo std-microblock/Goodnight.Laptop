@@ -52,27 +52,41 @@ std::expected<void, std::string> PowerListener::start() {
 
   std::thread([this] {
     MSG msg;
-    goodnight::PlaceholderWindow window;
-    while (GetMessage(&msg, (HWND)window.hWnd, 0, 0)) {
-      std::lock_guard lock(this->msgMutex);
-      if (*destructed) {
-        return;
-      }
-      if (msg.message == WM_POWERBROADCAST) {
-        switch (msg.wParam) {
-        case PBT_APMSUSPEND:
-          PPOWERBROADCAST_SETTING setting =
-              reinterpret_cast<PPOWERBROADCAST_SETTING>(msg.lParam);
+    goodnight::PlaceholderWindow window(
+        [&](auto hwnd, auto msg, auto wparam, auto lparam) {
+          std::lock_guard lock(this->msgMutex);
 
-          if (setting->PowerSetting == GUID_LIDSWITCH_STATE_CHANGE) {
-            if (setting->Data[0] == 0) {
-              emitEvent(LidEvent{true});
-            } else {
-              emitEvent(LidEvent{false});
+          if (*destructed) {
+            return;
+          }
+          if (msg == WM_POWERBROADCAST) {
+            switch ((long long)wparam) {
+            case 32787:
+              PPOWERBROADCAST_SETTING setting =
+                  reinterpret_cast<PPOWERBROADCAST_SETTING>(lparam);
+
+              if (setting->PowerSetting == GUID_LIDSWITCH_STATE_CHANGE) {
+                if (setting->Data[0] == 0) {
+                  emitEvent(LidEvent{true});
+                } else {
+                  emitEvent(LidEvent{false});
+                }
+              }
+              break;
             }
           }
-          break;
-        }
+        });
+    if (!RegisterPowerSettingNotification((HWND)window.hWnd,
+                                          &GUID_LIDSWITCH_STATE_CHANGE,
+                                          DEVICE_NOTIFY_WINDOW_HANDLE)) {
+      goodnight::Logger::error(
+          "Failed to register power setting notification: {}", GetLastError());
+    }
+    while (GetMessage(&msg, (HWND)window.hWnd, 0, 0)) {
+      TranslateMessage(&msg);
+      DispatchMessage(&msg);
+      if (*destructed) {
+        return;
       }
     }
   }).detach();
@@ -96,8 +110,8 @@ std::expected<void, std::string> PowerListener::start() {
     EVT_HANDLE events[1];
     DWORD returned;
     while (true) {
-      WaitForSingleObject(evt, INFINITE);
-
+      // WaitForSingleObject(evt, INFINITE);
+      Sleep(100);
       while (EvtNext(sub, 1, events, INFINITE, 0, &returned)) {
         std::lock_guard lock(this->msgMutex);
         if (*destructed) {
@@ -131,6 +145,25 @@ std::expected<void, std::string> PowerListener::start() {
           auto eventRecordId =
               std::stoul(extractStr("<EventRecordID>", "</EventRecordID>"));
           auto eventId = std::stoul(extractStr("<EventID>", "</EventID>"));
+          auto eventTime = extractStr("<TimeCreated SystemTime='", "' />");
+
+          // parse the event time
+          std::chrono::system_clock::time_point timePoint;
+          {
+            std::tm tm = {};
+            std::istringstream ss(eventTime);
+            ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S.%f");
+            timePoint =
+                std::chrono::system_clock::from_time_t(std::mktime(&tm));
+          }
+
+          // time till now
+          auto timeTillNow = std::chrono::system_clock::now() - timePoint;
+          if (timeTillNow > std::chrono::seconds(3)) {
+            Logger::info("Event {}(EventId-{}) is too old, skip", eventRecordId,
+                         eventId);
+            continue;
+          }
 
           switch (static_cast<EventID>(eventId)) {
           case EventID::ExitModernStandby: {
@@ -456,8 +489,11 @@ Daemon::expected Daemon::updateWakeLog(const Config &new_config) {
         } else if (auto *lidEvent =
                        std::get_if<PowerListener::LidEvent>(&event)) {
           Logger::info("Lid: {}", lidEvent->closed ? "Closed" : "Opened");
-        } else {
+        } else if (auto *baseEvent =
+                       std::get_if<PowerListener::BaseWindowsEvent>(&event)) {
           // Logger::info("Unknown event");
+          Logger::debug("PowerListener::BaseWindowsEvent event: {}",
+                        baseEvent->detail);
         }
       });
 
@@ -627,7 +663,7 @@ std::expected<void, std::string> DeviceManager::switchHIDDevices(
   DWORD i;
   SP_PROPCHANGE_PARAMS
   params;
-  hDevInfo = SetupDiGetClassDevs(NULL, 0, 0, DIGCF_PRESENT | DIGCF_ALLCLASSES);
+  hDevInfo = SetupDiGetClassDevs(NULL, 0, 0, DIGCF_ALLCLASSES);
 
   if (hDevInfo == INVALID_HANDLE_VALUE) {
     return std::unexpected("SetupDiGetClassDevs failed");
@@ -762,6 +798,11 @@ std::expected<void, std::string> DeviceManager::restoreHIDDevices() {
     return res;
   }
 
+  for (auto &device : hidDevicesDisabled) {
+    Logger::info("Device[{}]: {} cannot be restored.", device.className,
+                 device.deviceDesc);
+  }
+
   return {};
 }
 Daemon::expected Daemon::updateDisableDevices(const Config &new_config) {
@@ -812,7 +853,7 @@ Daemon::expected Daemon::updateDisableDevices(const Config &new_config) {
 
           runSwitch();
           devClassesToDisable.clear();
-          
+
           if (!config.wakeupActions.contains(WA::TouchPad)) {
             auto res = deviceManager->switchHIDDevices(
                 [&](DeviceManager::DeviceInformationBasic &device)

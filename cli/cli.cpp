@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <iostream>
 #include <ranges>
+#include <thread>
 #include <vector>
 
 std::expected<goodnight::Daemon::Config::WakeupActions, std::string>
@@ -181,7 +182,7 @@ int main(int argc, char **argv) {
                         WA::DisplayOn,
                         WA::PowerButton,
                     },
-                .suspendProcesses = true,
+                .suspendProcesses = false,
                 .wakeLog = true,
                 .disableDevices = false};
     }
