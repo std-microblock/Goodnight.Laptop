@@ -7,6 +7,7 @@ set(CMAKE_AUTORCC ON)
 
 # Third Party Libraries
 add_subdirectory(external/Lyra)
+add_subdirectory(external/glaze)
 
 ### Dependencies for GUI
 set(BUILD_SHARED_LIBS OFF)
@@ -58,5 +59,5 @@ target_link_directories(goodnight-gui
 )
 target_link_libraries(goodnight-gui
     goodnight-lib RmlUi::RmlUi freetype
-    rmlui_backend_GLFW_GL3 glfw3_mt dwmapi
+    rmlui_backend_GLFW_GL3 glfw3_mt dwmapi glaze::glaze
 )

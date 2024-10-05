@@ -4,11 +4,13 @@
 #include <expected>
 #include <filesystem>
 #include <fstream>
+#include <glaze/json/write.hpp>
 #include <initializer_list>
 #include <iostream>
 #include <iterator>
 #include <memory>
 
+#include <sstream>
 #include <string>
 #include <thread>
 #include <unordered_set>
@@ -31,6 +33,8 @@
 
 #include "goodnight/goodnight.h"
 #include "goodnight/logger.h"
+
+#include "glaze/glaze.hpp"
 
 #include "FileWatch.hpp"
 
@@ -141,6 +145,62 @@ std::vector<FontFace> getFontFaces() {
   return fontFaces;
 }
 
+struct SavedConfig {
+  bool keepSleep = false;
+  std::vector<std::string> wakeupActions{
+      "PowerButton",
+  };
+
+  bool suspendProcesses = false;
+
+  bool wakeLog = false;
+  bool disableDevices = false;
+
+  goodnight::Daemon::Config toConfig() {
+    goodnight::Daemon::Config config;
+    config.keepSleep = keepSleep;
+    config.suspendProcesses = suspendProcesses;
+    config.wakeLog = wakeLog;
+    config.disableDevices = disableDevices;
+    for (auto &action : wakeupActions) {
+      if (action == "DisplayOn") {
+        config.wakeupActions.insert(goodnight::Daemon::Config::WakeupActions::DisplayOn);
+      } else if (action == "Keyboard") {
+        config.wakeupActions.insert(goodnight::Daemon::Config::WakeupActions::Keyboard);
+      } else if (action == "Mouse") {
+        config.wakeupActions.insert(goodnight::Daemon::Config::WakeupActions::Mouse);
+      } else if (action == "TouchPad") {
+        config.wakeupActions.insert(goodnight::Daemon::Config::WakeupActions::TouchPad);
+      } else if (action == "Other") {
+        config.wakeupActions.insert(goodnight::Daemon::Config::WakeupActions::Other);
+      }
+    }
+    return config;
+  }
+
+  static SavedConfig fromConfig(const goodnight::Daemon::Config &config) {
+    SavedConfig savedConfig;
+    savedConfig.keepSleep = config.keepSleep;
+    savedConfig.suspendProcesses = config.suspendProcesses;
+    savedConfig.wakeLog = config.wakeLog;
+    savedConfig.disableDevices = config.disableDevices;
+    for (auto &action : config.wakeupActions) {
+      if (action == goodnight::Daemon::Config::WakeupActions::DisplayOn) {
+        savedConfig.wakeupActions.push_back("DisplayOn");
+      } else if (action == goodnight::Daemon::Config::WakeupActions::Keyboard) {
+        savedConfig.wakeupActions.push_back("Keyboard");
+      } else if (action == goodnight::Daemon::Config::WakeupActions::Mouse) {
+        savedConfig.wakeupActions.push_back("Mouse");
+      } else if (action == goodnight::Daemon::Config::WakeupActions::TouchPad) {
+        savedConfig.wakeupActions.push_back("TouchPad");
+      } else if (action == goodnight::Daemon::Config::WakeupActions::Other) {
+        savedConfig.wakeupActions.push_back("Other");
+      }
+    }
+    return savedConfig;
+  }
+};
+
 struct UIData {
   int daemonEnabled; // 0 = disabled, 1 = enabled
   goodnight::Daemon::Config config{
@@ -205,6 +265,11 @@ bool deleteStartupTask() {
       ->first.contains("success");
 }
 
+static auto configFile() {
+  auto exeDir = std::filesystem::path(__argv[0]).parent_path();
+  return exeDir / "goodnight.json";
+}
+
 static auto createMainModel(Rml::Context *context) {
   auto model = context->CreateDataModel("Goodnight");
   model.Bind("daemonEnabled", &uiData.daemonEnabled);
@@ -241,6 +306,18 @@ static auto createMainModel(Rml::Context *context) {
 
   model.BindEventCallback(
       "reloadConfigs", [](auto handle, auto &event, const auto variant) {
+        auto saved = SavedConfig::fromConfig(uiData.config);
+        std::ofstream file(configFile());
+        if (!file) {
+          goodnight::Logger::error("Failed to open config file, the changes "
+                                   "will not be saved");
+        }
+        if(auto val = glz::write_json(saved); val.has_value()) {
+          file << val.value();
+        } else {
+          goodnight::Logger::error("Failed to write config: {}", val.error().custom_error_message);
+        }
+
         if (!daemon)
           return Rml::Variant("Daemon not running");
         if (auto res = daemon->updateConfig(uiData.config); !res) {
@@ -565,6 +642,20 @@ int main(int argc, char *argv[]) {
   }
 
   daemon = std::make_unique<goodnight::Daemon>();
+
+  // Load config
+  std::ifstream file(configFile());
+  if (!file) {
+    goodnight::Logger::error("Failed to open config file");
+  }
+  std::stringstream ss;
+  ss << file.rdbuf();
+  if(auto val = glz::read_json<SavedConfig>(ss.str()); val.has_value()) {
+    uiData.config = val.value().toConfig();
+  } else {
+    goodnight::Logger::error("Failed to read config: {}", val.error().custom_error_message);
+  }
+
   if (auto res = daemon->updateConfig(uiData.config); !res) {
     goodnight::Logger::error("Failed to update config: {}", res.error());
     daemon = nullptr;
