@@ -1,12 +1,9 @@
 [中文](./README_zh.md)
 <div align=center>
-<img src="./icon.webp" width=130>
+<img src="./resources/icon.webp" width=130>
 <h1>Goodnight · 晚安好梦</h1>
 <h3>Fixes S0 StandBy</h3>
-<sup><sub>
-GUI internationalization isn't done currently. English users can use CLI version alternatively.
-</sub></sup>
-<img src="./screenshot.webp" />
+<img src="./resources/screenshot_en.webp" />
 </div>
 
 ### What would the project do?

@@ -3,6 +3,7 @@ project(goodnight)
 
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+set(CMAKE_AUTORCC ON)
 
 # Third Party Libraries
 add_subdirectory(external/Lyra)
@@ -36,7 +37,7 @@ target_include_directories(goodnight-lib
 
 # CLI
 add_executable(goodnight-cli
-    cli/cli.cpp
+    cli/cli.cpp resources/app.rc
 )
 
 target_link_libraries(goodnight-cli
@@ -46,17 +47,16 @@ target_link_libraries(goodnight-cli
 # GUI
 
 add_executable(goodnight-gui
-    gui/gui.cpp
+    gui/gui.cpp resources/app.rc
 )
 
 target_include_directories(goodnight-gui
-PRIVATE external/RmlUi/include external/
+    PRIVATE external/RmlUi/include external/
 )
-target_link_options(goodnight-gui PRIVATE -Xlinker /MANIFESTUAC:"level='requireAdministrator' uiAccess='false'")
 target_link_directories(goodnight-gui
     PRIVATE external/prebuilts
 )
 target_link_libraries(goodnight-gui
     goodnight-lib RmlUi::RmlUi freetype
-    rmlui_backend_GLFW_GL3 glfw3_mt
+    rmlui_backend_GLFW_GL3 glfw3_mt dwmapi
 )
