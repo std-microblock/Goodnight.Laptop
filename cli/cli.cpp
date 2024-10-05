@@ -173,7 +173,8 @@ int main(int argc, char **argv) {
                 .wakeupActions = wakeupActionsSet,
                 .suspendProcesses = suspendProcesses,
                 .wakeLog = wakeLog,
-                .disableDevices = disableDevices};
+                .disableDevices = disableDevices,
+                .sleepAfterLidCloseSeconds = 40};
     } else {
       goodnight::Logger::info("Using default config...");
       config = {.keepSleep = true,
@@ -184,7 +185,8 @@ int main(int argc, char **argv) {
                     },
                 .suspendProcesses = false,
                 .wakeLog = true,
-                .disableDevices = false};
+                .disableDevices = false,
+                .sleepAfterLidCloseSeconds = 40};
     }
 
     // Output the config as a human readable string

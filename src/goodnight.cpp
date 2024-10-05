@@ -4,11 +4,13 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <expected>
 #include <filesystem>
 #include <format>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <print>
@@ -145,21 +147,23 @@ std::expected<void, std::string> PowerListener::start() {
           auto eventRecordId =
               std::stoul(extractStr("<EventRecordID>", "</EventRecordID>"));
           auto eventId = std::stoul(extractStr("<EventID>", "</EventID>"));
-          auto eventTime = extractStr("<TimeCreated SystemTime='", "' />");
+          auto eventTime = extractStr("<TimeCreated SystemTime='", "'");
 
-          // parse the event time
-          std::chrono::system_clock::time_point timePoint;
-          {
-            std::tm tm = {};
-            std::istringstream ss(eventTime);
-            ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S.%f");
-            timePoint =
-                std::chrono::system_clock::from_time_t(std::mktime(&tm));
-          }
+          time_t time;
+          std::tm tm = {};
+          std::istringstream ss(eventTime);
+          ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S.%f");
+          time = std::mktime(&tm);
+          auto nowTime = std::chrono::system_clock::now();
+          auto timezone = std::chrono::current_zone();
 
-          // time till now
-          auto timeTillNow = std::chrono::system_clock::now() - timePoint;
-          if (timeTillNow > std::chrono::seconds(3)) {
+          auto localTime = timezone->to_local(nowTime);
+          auto timeTillNow =
+              localTime.time_since_epoch().count() / 1000 / 10000 -
+              std::chrono::seconds(time).count() -
+              timezone->get_info(nowTime).offset.count() * 2;
+
+          if (timeTillNow > 1000) {
             Logger::info("Event {}(EventId-{}) is too old, skip", eventRecordId,
                          eventId);
             continue;
@@ -253,6 +257,9 @@ std::expected<void, std::string> Daemon::updateConfig(const Config &config) {
     return res;
   }
   if (auto res = updateDisableDevices(config); !res) {
+    return res;
+  }
+  if (auto res = updateSleepAfterLidCloseSeconds(config); !res) {
     return res;
   }
   this->config = config;
@@ -906,6 +913,61 @@ bool isAdministrator() {
 
   CloseHandle(hToken);
   return elevation.TokenIsElevated;
+}
+Daemon::expected
+Daemon::updateSleepAfterLidCloseSeconds(const Config &new_config) {
+  if (new_config.sleepAfterLidCloseSeconds) {
+    if (!config.sleepAfterLidCloseSeconds) {
+      powerListenerSleepAfterLidCloseSeconds =
+          std::make_unique<PowerListener>();
+      auto lastLidCloseTime = std::make_shared<int64_t>(0);
+      powerListenerSleepAfterLidCloseSeconds->addListener([=,
+                                                           this](auto event) {
+        if (auto *lidEvent = std::get_if<PowerListener::LidEvent>(&event)) {
+          if (lidEvent->closed) {
+            auto now =
+                std::chrono::system_clock::now().time_since_epoch().count();
+            *lastLidCloseTime = now;
+            Logger::info("Lid closed, sleep after {} seconds",
+                         config.sleepAfterLidCloseSeconds);
+            std::this_thread::sleep_for(
+                std::chrono::seconds(config.sleepAfterLidCloseSeconds));
+            if (*lastLidCloseTime != now) {
+              Logger::info("Lid closed, but opened before sleep, skip sleep");
+            }
+            StandbyManager::displayOff();
+
+            // emit sleep event
+            PowerListener::EnterModernStandbyEvent enterEvent;
+            enterEvent.reason = 15;
+            enterEvent.BatteryRemainingCapacityOnEnter = 0;
+            enterEvent.BatteryFullChargeCapacityOnEnter = 0;
+
+            auto emitFor = [&](auto &listener) {
+              if (listener)
+                listener->emitEvent(enterEvent);
+            };
+
+            emitFor(powerListenerKeepSleep);
+            emitFor(powerListenerSuspendProcesses);
+            emitFor(powerListenerDisableDevices);
+            std::this_thread::sleep_for(std::chrono::seconds(20));
+
+            StandbyManager::sleep();
+          } else {
+            *lastLidCloseTime = 0;
+          }
+        }
+      });
+
+      if (auto res = powerListenerSleepAfterLidCloseSeconds->start(); !res) {
+        return res;
+      }
+    }
+  } else {
+    powerListenerSleepAfterLidCloseSeconds = nullptr;
+  }
+  return {};
 }
 } // namespace goodnight
 

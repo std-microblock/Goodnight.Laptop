@@ -181,6 +181,7 @@ struct SavedConfig {
             goodnight::Daemon::Config::WakeupActions::Other);
       }
     }
+    config.sleepAfterLidCloseSeconds = 40;
     return config;
   }
 
@@ -209,9 +210,8 @@ struct SavedConfig {
 
 struct UIData {
   int daemonEnabled; // 0 = disabled, 1 = enabled
-  goodnight::Daemon::Config config{
-      .wakeLog = true,
-  };
+  goodnight::Daemon::Config config{.wakeLog = true,
+                                   .sleepAfterLidCloseSeconds = 40};
   std::vector<std::string> wakeupActions;
   bool english = false;
   bool runOnStartup = false;

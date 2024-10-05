@@ -81,9 +81,9 @@ struct PowerListener {
   void addListener(std::function<void(Events)> listener);
 
   ~PowerListener();
+  void emitEvent(Events event);
 
 private:
-  void emitEvent(Events event);
   bool started = false;
   std::vector<std::function<void(Events)>> listeners;
 
@@ -173,6 +173,7 @@ struct Daemon {
 
     bool wakeLog = false;
     bool disableDevices = false;
+    int sleepAfterLidCloseSeconds = 0;
   };
   using expected = std::expected<void, std::string>;
   expected updateConfig(const Config &config);
@@ -191,6 +192,9 @@ private:
 
   std::unique_ptr<PowerListener> powerListenerDisableDevices = nullptr;
   std::unique_ptr<DeviceManager> deviceManager = nullptr;
+
+  std::unique_ptr<PowerListener> powerListenerSleepAfterLidCloseSeconds =
+      nullptr;
 
   Config::WakeupActions
   ToWakeupAction(PowerListener::ExitModernStandbyEvent::Reason reason) {
@@ -224,5 +228,6 @@ private:
   expected updateSuspendProcesses(const Config &new_config);
   expected updateWakeLog(const Config &new_config);
   expected updateDisableDevices(const Config &new_config);
+  expected updateSleepAfterLidCloseSeconds(const Config &new_config);
 };
 } // namespace goodnight
